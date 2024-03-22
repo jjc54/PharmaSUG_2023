@@ -1,0 +1,292 @@
+---
+title: "Making Publication Metric Tracking Easy"
+subtitle: "Using a Reproducible, Integrated System of R and Microsoft Power BI® to Ease the Pain of Assessing Publication Metrics "
+author: "Joshua J. Cook, M.S., ACRP-PM, CCRC"
+institute: "Andrews Research & Education Foundation (AREF)"
+format: 
+  revealjs:
+    incremental: TRUE
+    theme: sky.scss
+    footer: "Check-in: psug334; Paper: SD-334"
+    slide-number: TRUE
+    logo: images/PS.jpeg
+    css: styles.css
+    embed-resources: TRUE
+editor: visual
+preload-iframes: TRUE
+preview-links: auto
+---
+
+## Biography {.scrollable}
+
+::: normalfont
+::: columns
+::: {.column width="40%"}
+![](images/grad.jpeg){fig-align="left" width="384"}
+:::
+
+::: {.column width="60%"}
+**Disclosure** - I've been in data science for about 1 year, and this is was my [first]{.underline} data science-related presentation.
+
+-   2021 - B.S., Biomedical Science, *University of West Florida*
+
+-   2023 - M.S., Clinical Research Management, *Wake Forest University*
+
+-   2023 - ACRP-PM/CCRC, *Association of Clinical Research Professionals (ACRP)*
+
+-   2024 - M.S., Data Science, *University of West Florida*
+
+-   2025 - Entry into M.D./Ph.D. program
+:::
+:::
+:::
+
+## Publication Metrics
+
+**Publications** in this talk refer to **peer-reviewed literature** from academic journals.
+
+Publications are quantified in the form of **publication data metrics**.
+
+These metrics can include:
+
+-   Publication counts
+
+-   Citation counts
+
+-   Affiliation spread (via journals)
+
+-   Journal impact factor (JIF), or 5-year JIF
+
+## Uses
+
+**Publication metric** signify individual, team, and organization [productivity]{.underline} and [impact.]{.underline}
+
+Used to make business decisions:
+
+-   Promotions/tenure
+
+-   Awards
+
+-   Grant funding
+
+-   Clinical study sponsorship
+
+## Problem {.scrollable}
+
+Research managers use this:
+
+![](images/pubmed.png){fig-align="center" height="500" width="900"}
+
+## With something like this... {.scrollable}
+
+![](images/Bad.png)
+
+# The Solution - easyPubMed
+
+## [**easyPubMed**]{.underline}
+
+An R package that interfaces with the Entrez Programming Utilities hosted by the National Center for Biotechnology Information (NCBI).
+
+-   Author: [Damiano Fantini, Ph.D.]{.underline}
+-   Specialized version of the rentrez R package...
+-   **Two-step process:** [building queries]{.underline} using PubMed field tags, then [retrieving records]{.underline} matching the queries from PubMed
+
+## Setup
+
+```{r}
+#| echo: true
+#| code-line-numbers: "1|3-5|7|9|11"
+
+# Create R project (Rproj), primary folder, working directory
+
+if(!require("tidyverse")) install.packages("tidyverse")
+if(!require("easyPubMed")) install.packages("easyPubMed")
+if(!require("XML")) install.packages("XML")
+
+library(tidyverse) 
+# Data wrangling 
+library(easyPubMed) 
+# Entrez interface
+library(XML) 
+# Reading and creating XML docs
+```
+
+## 1. Understanding the Query
+
+```{r}
+#| echo: true
+#| code-line-numbers: "1|4|7|11"
+AnzQuery <- "Adam W Anz[AU]" 
+# Author field tag (first or any order)
+
+AllAnzQuery <- "Adam W Anz[AU] OR Adam Anz[AU]" 
+# Field tag combination with "AND" or "OR" syntax
+
+AnzJournalQuery <- "Adam W Anz[AU] 
+AND (American Journal of Sports Medicine[TA] OR Arthroscopy[TA]) "
+# Combining field tags - full list in the paper
+
+AnnoyingNameQuery <- "Christopher O\'Grady[AU]"
+```
+
+## 2. Retrieving Records
+
+```{r}
+#| echo: true
+#| code-line-numbers: "4|7-10|1"
+#| output-location: slide
+AnzQuery <- "Adam W Anz[AU]"
+# Previous query
+
+AnzIDs <- get_pubmed_ids(AnzQuery)
+# Retrieving query matches
+
+Anz_abstracts <- fetch_pubmed_data(
+   	pubmed_id_list = AnzIDs, 
+format="abstract"
+)
+# Using PMIDs to download article information (as abstract)
+
+print(Anz_abstracts[1:16])
+```
+
+## 2. Retrieving Records
+
+```{r}
+#| echo: true
+#| code-line-numbers: "3|7-11|14"
+#| output-location: slide
+Anz_xml <- fetch_pubmed_data(
+  pubmed_id_list = AnzIDs, 
+  format="xml"
+  )
+# Using PMIDs to download article information (XML)
+
+Anz_titles <- custom_grep(
+  Anz_xml,
+  "ArticleTitle", 
+  "char"
+  )
+# Extracting XML-tagged data (Article Titles)
+
+print(Anz_titles[1:16])
+```
+
+## Retrieving Full Article Data
+
+```{r}
+#| echo: true
+#| warning: FALSE
+#| code-line-numbers: "1|3"
+Anz_download <- batch_pubmed_download(
+  pubmed_query_string = AnzQuery,
+  format = "xml",
+  batch_size = 1000,
+  encoding = "UTF8"
+)
+# Downloading ALL record information in XML format
+```
+
+## Sorting Full Article Data
+
+```{r}
+#| echo: true
+#| warning: FALSE
+#| code-line-numbers: "1|4|8"
+Anz_list <- articles_to_list(pubmed_data = Anz_download)
+# Sorting XML files into a list of article-specific information
+
+Anz_df_list <- lapply(Anz_list, article_to_df, autofill = TRUE)
+# Extracting article-specific information from the list
+# Stored as a list of tidy dataframes
+
+Anz_full_list <- do.call(rbind, Anz_df_list)
+# Unnesting the list into one dataframe
+```
+
+## Cleaning and Validation Tips
+
+-   Include as many author aliases as possible inside the query
+
+-   Use a differentiating variable to validate the data (i.e., is this the [correct]{.underline} Adam Anz?)
+
+-   Wrangle as needed with the tidyverse
+
+-   Scale up with as many authors as needed for your organization/project
+
+# Reporting Options: Quarto® and Microsoft Power BI®
+
+## A Basic Quarto® Report
+
+![](images/quarto.png){fig-align="center" height="600" width="550"}
+
+## 1. Quarto® {.scrollable .smaller}
+
+An open-source scientific and technical publishing system [**built into RStudio**]{.underline} (i.e., the next generation of R Markdown)
+
+6 Quick Steps:
+
+1.  In RStudio^®^, create a new [Quarto^®^ Document]{.underline}
+2.  Edit the [YAML header]{.underline} to fit the needs of the report
+3.  Create an [R code block for setup and data wrangling]{.underline}. The output of this block should not be included in the report
+4.  Create additional R code blocks to display [tables and figures]{.underline} that [tell the story of the data]{.underline} (using packages such as gt and ggplot2).
+5.  Add [branding]{.underline} and make [context]{.underline} using external text, images, and links
+6.  [Render]{.underline} the document
+
+## The Final Product {.scrollable}
+
+::: {style="text-align: center; margin-top: 1em"}
+[Power BI](https://tinyurl.com/2p9b558x){preview-link="true" style="text-align: center"}
+:::
+
+## 2. Microsoft Power BI® {.scrollable .smaller}
+
+A proprietary business intelligence (BI) application developed by **Microsoft**. Three basic options for connecting our data to the Power BI desktop client:
+
+1.  Export the dataframe from R as a static data source (ex: xlsx, csv)
+
+2.  Save the RData file within RStudio and load it from a defined working directory within the Power BI desktop client
+
+    ![](images/PB1.png){fig-align="center" height="300" width="550"}
+
+    ![](images/PB2.png){fig-align="center" height="400" width="750"}
+
+3.  Run the entire R script within the Power BI desktop client (no dedicated IDE needed!)
+
+![](images/PB3.png){fig-align="center" height="500" width="900"}
+
+## Simple Microsoft Power BI® Report Steps {.scrollable .smaller}
+
+1.  [Transform]{.underline} the data using standard Microsoft Power Query^®^ syntax
+
+2.  From the visualizations tab, [edit report page settings]{.underline} to define the canvas size, background, and any other customizations
+
+3.  Choose from available [visualizations]{.underline} within Microsoft Power BI^®^ or external visualizations from the visualization store, and other scripting options (such as R or Python)
+
+4.  Once a visualization is chosen, drag [fields]{.underline} (data columns) of interest from the data tab to the visualization or filter tabs.
+
+5.  Continue adding visualizations to [tell the story of the data]{.underline}
+
+6.  Add [branding]{.underline} and make [context]{.underline} using external text, images, and links
+
+7.  [Publish]{.underline} the final report to the Microsoft Power BI Online Service^®^ to distribute to stakeholders
+
+## Conclusions {.smaller}
+
+-   Publication metrics are increasingly being used to measure individual- and organization-level **productivity** and **impact** within academia and industry
+
+-   Historically, publication metrics have **not been the easiest thing to quantify** and manage
+
+-   Instead of manually obtaining this data, it is much more feasible to leverage the **R** programming language and various **reporting systems** to manage this data
+
+-   In the future, this system should also capture article citation counts and journal impact factors to add **more context** to these metrics. **Automation** of this system (i.e., automated, timed data refreshes) using a third-party program should investigated as well
+
+## Contact Information
+
+Joshua J. Cook, M.S., ACRP-PM, CCRC
+
+Cell: (850)736-1801
+
+Email: jcook0312\@outlook.com (Email me for the full paper!)
+
+![](images/Dot2.png){fig-align="center" width="263"}
